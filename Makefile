@@ -1,4 +1,5 @@
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+IMG ?= localhost/controller:latest
 
 .PHONY: all
 all: help
@@ -11,8 +12,8 @@ help: ## Display this help
 
 ##@ Development
 
-#TODO: manifests
-#TODO: generate
+# TODO: manifest
+# TODO: generate
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -34,23 +35,67 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 lint-config: golangci-lint ## Verify golangci-lint linter configuration
 	$(GOLANGCI_LINT) config verify
 
-#TODO: test
-#TODO: test-e2e
+.PHONY: test
+test: fmt vet setup-envtest ## Run tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+
+.PHONY: test
+test-verbose: manifests generate fmt vet setup-envtest ## Run tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out -v -- --nocapture
+
+.PHONY: test-e2e
+test-e2e: fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
+	@command -v kind >/dev/null 2>&1 || { \
+		echo "Kind is not installed. Please install Kind manually."; \
+		exit 1; \
+	}
+	@kind get clusters | grep -q 'kind' || { \
+		echo "No Kind cluster is running. Please start a Kind cluster before running the e2e tests."; \
+		exit 1; \
+	}
+	go test ./test/e2e/ -v -ginkgo.v
 
 ##@ Build
 
-#TODO: build
-#TODO: run
-#TODO: docker-build
+.PHONY: build
+build: manifests generate fmt vet ## Build manager binary.
+	go build -o bin/manager cmd/main.go
+
+.PHONY: run
+run: manifests generate fmt vet ## Run a controller from your host.
+	go run ./cmd/main.go
+
+# If you wish to build the manager image targeting other platforms you can use the --platform flag.
+# (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
+# More info: https://docs.docker.com/develop/develop-images/build_enhancements/
+.PHONY: docker-build
+docker-build: ## Build docker image with the manager.
+	$(CONTAINER_TOOL) build -t ${IMG} .
+
 #TODO: docker-buildx
 #TODO: build-installer
 
 ##@ Deployment
 
-#TODO: install
-#TODO: uninstall
-#TODO: deploy
-#TODO: undeploy
+ifndef ignore-not-found
+  ignore-not-found = false 
+endif
+
+.PHONY: install
+install: kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
+
+.PHONY: uninstall
+uninstall: kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignor
+	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+
+.PHONY: deploy
+deploy: kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+
+undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Tools
 
@@ -70,6 +115,8 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
+
+CONTAINER_TOOL ?= $(DOCKER)
 
 ## Tool Variables
 KIND_PREFIX ?= velocis

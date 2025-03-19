@@ -1,0 +1,35 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - vellun.io
+  resources:
+  - gpugroups
+  - gpunetworkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - vellun.io
+  resources:
+  - gpugroups/finalizers
+  - gpunetworkpolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - vellun.io
+  resources:
+  - gpugroups/status
+  - gpunetworkpolicies/status
+  verbs:
+  - get
+  - patch
+  - update
