@@ -26,8 +26,8 @@ type WebhookOptions struct {
 // addWebhookOptions adds the webhook options flags to the flag set.
 func addWebhookOptions(fs *pflag.FlagSet, options *WebhookOptions) {
 	fs.StringVar(&options.CertPath, "webhook-cert-path", "", "The directory that contains the webhook certificate.")
-	fs.StringVar(&options.CertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
 	fs.StringVar(&options.CertKey, "webhook-cert-key", "tls.key", "The name of the webhook key file.")
+	fs.StringVar(&options.CertName, "webhook-cert-name", "tls.crt", "The name of the webhook certificate file.")
 }
 
 // getWebhookOptions
@@ -37,6 +37,7 @@ func getWebhookOptions(options WebhookOptions, tlsOptions []func(*tls.Config)) (
 	var err error
 
 	webhookOptions = &webhook.Options{TLSOpts: tlsOptions}
+
 	if len(options.CertPath) > 0 {
 		certWatcher, err = certwatcher.New(
 			filepath.Join(options.CertPath, options.CertName),

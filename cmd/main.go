@@ -79,6 +79,10 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	webhookOptions, metricsOptions, err := flags.GetManagerOptions(managerOptions)
+	if err != nil {
+		setupLog.Error(err, "unable to construct manager options")
+		os.Exit(1)
+	}
 
 	// Configure restConfig
 	restConfig := ctrl.GetConfigOrDie()
